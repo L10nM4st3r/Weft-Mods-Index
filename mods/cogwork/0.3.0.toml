@@ -1,6 +1,6 @@
 # Shown in the launcher. The newest version's say what the mod is.
 name = "cogwork"
-summary = ""
+summary = "Item tubes you can see into, engines, and machines that take over the big jobs: an excavator that mines out a whole area…"
 author = "Zorro909"
 
 # What is built: the crate in `dir` of `repo` at `commit`, against the SDK of `weft`.
