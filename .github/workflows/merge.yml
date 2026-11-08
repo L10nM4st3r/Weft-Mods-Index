@@ -1,0 +1,63 @@
+# Merges a pull request whose `check` passed, after checking it again with main's rules: `check`
+# runs the pull request's own copy of the workflows, which only matters if it changed them, and
+# then main's rules turn it down here. Then `publish` builds what it added.
+name: merge
+
+on:
+  workflow_run:
+    workflows: [check]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  merge:
+    if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: index
+          persist-credentials: false
+
+      # Found by the commit that passed, not by anything the pull request's run wrote down.
+      - name: Which pull request
+        id: pr
+        run: |
+          gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 200 \
+            --json number,headRefOid,author,headRepository,headRepositoryOwner \
+            | jq -r --arg sha "$SHA" '.[] | select(.headRefOid == $sha)
+                | "number=\(.number)\nauthor=\(.author.login)\nrepo=\(.headRepositoryOwner.login)/\(.headRepository.name)"' \
+            >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        if: steps.pr.outputs.number
+        with:
+          repository: ${{ steps.pr.outputs.repo }}
+          ref: ${{ env.SHA }}
+          path: pr
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        if: steps.pr.outputs.number
+        with:
+          python-version: "3.12"
+
+      - name: Check again and merge
+        if: steps.pr.outputs.number
+        env:
+          NUMBER: ${{ steps.pr.outputs.number }}
+          AUTHOR: ${{ steps.pr.outputs.author }}
+        run: |
+          python index/scripts/check.py index pr "$AUTHOR"
+          gh pr merge "$NUMBER" --repo "$GITHUB_REPOSITORY" --squash --match-head-commit "$SHA"
+          # A merge by this token starts no workflow by itself.
+          gh workflow run publish.yml --repo "$GITHUB_REPOSITORY"

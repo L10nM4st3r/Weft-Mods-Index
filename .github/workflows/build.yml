@@ -1,0 +1,88 @@
+# Builds mods for every system: a library each, as artifacts named lib-<id>-<version>-<weft>-<system>.
+# The mod's code runs here (build scripts, macros), so this job may read and nothing more.
+name: build
+
+on:
+  workflow_call:
+    inputs:
+      builds:
+        description: JSON list of {id, version, repo, dir, commit, weft, target}
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.build.id }} ${{ matrix.build.version }} for ${{ matrix.build.target }} on ${{ matrix.system.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        build: ${{ fromJSON(inputs.builds) }}
+        system:
+          - { name: windows, os: windows-latest }
+          # The oldest the game is built on, for its glibc.
+          - { name: linux, os: ubuntu-22.04 }
+          # One library for both kinds of Mac.
+          - { name: macos, os: macos-latest }
+    runs-on: ${{ matrix.system.os }}
+    env:
+      ID: ${{ matrix.build.id }}
+      REPO: ${{ matrix.build.repo }}
+      COMMIT: ${{ matrix.build.commit }}
+      TARGET: ${{ matrix.build.target }}
+      SYSTEM: ${{ matrix.system.name }}
+      KEY: ${{ matrix.build.id }}-${{ matrix.build.version }}-${{ matrix.build.target }}
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
+    steps:
+      # This repository's scripts, from main whatever started the run.
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: index
+          sparse-checkout: scripts
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: The mod at its commit
+        shell: bash
+        run: |
+          git init -q mod
+          git -C mod fetch -q --depth=1 "$REPO" "$COMMIT"
+          git -C mod checkout -q FETCH_HEAD
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.system.name == 'macos' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Build
+        shell: bash
+        working-directory: mod/${{ matrix.build.dir }}
+        run: |
+          python "$GITHUB_WORKSPACE/index/scripts/patch_sdk.py" Cargo.toml "$TARGET"
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          case "$SYSTEM" in
+            windows)
+              cargo build --release
+              cp "$CARGO_TARGET_DIR/release/$ID.dll" "$GITHUB_WORKSPACE/out/" ;;
+            linux)
+              cargo build --release
+              cp "$CARGO_TARGET_DIR/release/lib$ID.so" "$GITHUB_WORKSPACE/out/" ;;
+            macos)
+              cargo build --release --target aarch64-apple-darwin
+              cargo build --release --target x86_64-apple-darwin
+              lipo -create -output "$GITHUB_WORKSPACE/out/lib$ID.dylib" \
+                "$CARGO_TARGET_DIR/aarch64-apple-darwin/release/lib$ID.dylib" \
+                "$CARGO_TARGET_DIR/x86_64-apple-darwin/release/lib$ID.dylib" ;;
+          esac
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lib-${{ env.KEY }}-${{ matrix.system.name }}
+          path: out/*
+          if-no-files-found: error
+          retention-days: 1

@@ -1,0 +1,107 @@
+# Builds what isn't built yet (scripts/plan.py: one mod a run), puts each zip in a release of this
+# repository and writes state.json and index.json to the gh-pages branch, where the launcher reads
+# index.json. Also every few hours, for new Weft releases to get what was built for older ones.
+name: publish
+
+on:
+  push:
+    branches: [main]
+    paths: ["mods/**"]
+  workflow_dispatch:
+  schedule:
+    - cron: "23 */6 * * *"
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      builds: ${{ steps.plan.outputs.builds }}
+      more: ${{ steps.plan.outputs.more }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: index
+          persist-credentials: false
+
+      - uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: gh-pages
+          path: state
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - id: plan
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python index/scripts/plan.py state
+
+  build:
+    needs: plan
+    if: needs.plan.outputs.builds != '[]'
+    uses: ./.github/workflows/build.yml
+    with:
+      builds: ${{ needs.plan.outputs.builds }}
+
+  # Runs none of the mods' code, so it is the one job that may write.
+  release:
+    needs: [plan, build]
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BUILDS: ${{ needs.plan.outputs.builds }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: index
+          persist-credentials: false
+
+      - uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: gh-pages
+          path: state
+
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: lib-*
+          path: artifacts
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Release and index
+        run: |
+          if [ ! -d state/.git ]; then rm -rf state; git init -q -b gh-pages state; fi
+          python index/scripts/release.py artifacts state
+          python index/scripts/index.py state
+
+      - name: Write to gh-pages
+        working-directory: state
+        run: |
+          git add state.json index.json
+          if git diff --cached --quiet; then exit 0; fi
+          git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com commit -q -m "index"
+          git push -q "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}" HEAD:gh-pages
+
+      - name: The next mod
+        if: needs.plan.outputs.more == 'true'
+        run: gh workflow run publish.yml --repo "$GITHUB_REPOSITORY"

@@ -1,0 +1,45 @@
+# A pull request: its files follow the rules (scripts/check.py, run from the base, never from the
+# pull request) and what it adds builds. `merge` merges it once this passes.
+name: check
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      builds: ${{ steps.check.outputs.builds }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: index
+          persist-credentials: false
+
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pr
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - id: check
+        env:
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: python index/scripts/check.py index pr "$AUTHOR"
+
+  build:
+    needs: validate
+    if: needs.validate.outputs.builds != '[]'
+    uses: ./.github/workflows/build.yml
+    with:
+      builds: ${{ needs.validate.outputs.builds }}
