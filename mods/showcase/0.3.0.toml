@@ -1,6 +1,6 @@
 # Shown in the launcher. The newest version's say what the mod is.
 name = "showcase"
-summary = "Plays the films other mods make of their content: a set built in the world and a camera flying around it in orbits, flybys and cranes."
+summary = "Plays camera films that mods make to show off their content."
 author = "Zorro909"
 
 # What is built: the crate in `dir` of `repo` at `commit`, against the SDK of `weft`.
