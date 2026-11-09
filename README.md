@@ -17,6 +17,8 @@ Your mod's `Cargo.toml` takes the SDK from the game's repository at a release ta
 weft_sdk = { git = "https://github.com/Weft-Rust/Weft", tag = "v26.11.3" }
 ```
 
+`base_api` the same way, if you use it. For each new Weft release the index builds your mod again with every `weft_sdk` and `base_api` in it taken from that release: your own, those of your path dependencies and of libraries you share between your mods alike, so nothing needs to be kept in step by hand.
+
 Commit and push, then from the game's folder:
 
 ```

@@ -59,11 +59,16 @@ jobs:
         with:
           targets: ${{ matrix.system.name == 'macos' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
+      # The Weft built for: every weft_sdk and base_api in the mod's build comes from it.
+      - name: Weft at the target tag
+        shell: bash
+        run: git clone -q --depth 1 --branch "$TARGET" https://github.com/Weft-Rust/Weft weft
+
       - name: Build
         shell: bash
         working-directory: mod/${{ matrix.build.dir }}
         run: |
-          python "$GITHUB_WORKSPACE/index/scripts/patch_sdk.py" Cargo.toml "$TARGET"
+          python "$GITHUB_WORKSPACE/index/scripts/patch_sdk.py" . "$GITHUB_WORKSPACE/weft"
           mkdir -p "$GITHUB_WORKSPACE/out"
           case "$SYSTEM" in
             windows)
