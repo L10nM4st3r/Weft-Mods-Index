@@ -1,0 +1,16 @@
+# Shown in the launcher. The newest version's say what the mod is.
+name = "beauty_of_nature"
+summary = "Adds new plants, rocks, and natural decorations."
+author = "L10nM4st3r"
+
+# What is built: the crate in `dir` of `repo` at `commit`, against the SDK of `weft`.
+repo = "https://github.com/L10nM4st3r/Weft-Mods"
+dir = "beauty_of_nature"
+commit = "4533b28e7a1c8f26a2534a0c36aa9c506fc15c38"
+weft = "v26.11.4"
+# Mod ids it needs besides base, installed with it.
+deps = []
+# The GitHub login the id belongs to: only they can add versions.
+owner = "L10nM4st3r"
+# Set by a maintainer who read the source of this commit.
+reviewed = ""
