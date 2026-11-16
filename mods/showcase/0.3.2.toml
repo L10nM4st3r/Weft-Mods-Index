@@ -1,0 +1,16 @@
+# Shown in the launcher. The newest version's say what the mod is.
+name = "showcase"
+summary = "Plays camera films that mods make to show off their content."
+author = "Zorro909"
+
+# What is built: the crate in `dir` of `repo` at `commit`, against the SDK of `weft`.
+repo = "https://github.com/Zorro909/weft-mods"
+dir = "showcase"
+commit = "1439d6c8a5af0f6cf124c29d4d80fe7ee51fb624"
+weft = "v26.11.5"
+# Mod ids it needs besides base, installed with it.
+deps = []
+# The GitHub login the id belongs to: only they can add versions.
+owner = "Zorro909"
+# Set by a maintainer who read the source of this commit.
+reviewed = "VortexSo4"
